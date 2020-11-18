@@ -33,7 +33,7 @@ script_dir=$(cd `dirname $0` && pwd)
 python $script_dir/flat_sub_bias.py $path_file
 python $script_dir/compare_biassub_flat2nights.py $path_file
 python $script_dir/correct_flat_with_compare.py $path_file
-python $script_dir/weighted_combine_twilightflat.py $path_file
+python $script_dir/combine_twilightflat.py $path_file
 
 
 

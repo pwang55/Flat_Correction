@@ -9,7 +9,8 @@ Usage:
 
 This script takes biassub_flat.corrected.fits and weighted average them to create twilight flats. You can have different filters/months in correctedlists. It will detect filter and month itself.
 
-Input flatlist.txt should contain original raw flat file names.
+The file names in flatlist.txt should be the original raw flat file names.
+
 
 """
 import numpy as np
@@ -19,7 +20,7 @@ import os
 
 
 sig = 2.5
-
+method = 'median'   # median or weighted
 
 if len(sys.argv)!=2:
     print(__doc__)
@@ -38,7 +39,8 @@ bias_dark_flats_dir = os.environ['_90PRIME_BIAS_DARK_FLATS_DIR']
 
 
 with open(path_file) as f:
-    filelists = [ filepath+'biassub_'+l.strip().replace('.fits','.corrected.fits') for l in f ]
+    filelists = [filepath + 'biassub_' + l.strip().replace('.fits', '.corrected.fits') for l in f]
+
 
 def weight_combine(filt='ASU1',month='Feb'):
     
@@ -90,19 +92,27 @@ def weight_combine(filt='ASU1',month='Feb'):
                 im = d[j].data
             dat[i] = im
             im[~ho] = 0.0
-            weights[i][True] = np.median(im[im>0])/np.std(im[im>0])
+            # weights[i][True] = np.median(im[im>0])/np.std(im[im>0])
+            weights[i][True] = 1.0 / np.std(im[im > 0])** 2
             dat2[i] = dat[i]*weights[i]
 
         std_j = np.std(dat, axis=0)
         med_j = np.median(dat, axis=0)
 
-        for i in range(n):
-            hs = (dat[i] < med_j + sig*std_j) & (dat[i] > med_j - sig*std_j)
-            weights[i][~hs] = 0.0
-            dat2[i][~hs] = 0.0
+        if method == 'weighted':
+
+            for i in range(n):
+                hs = (dat[i] < med_j + sig*std_j) & (dat[i] > med_j - sig*std_j)
+                weights[i][~hs] = 0.0
+                dat2[i][~hs] = 0.0
+
+            datf = np.sum(dat2, axis=0)/np.sum(weights, axis=0)
+
+        elif method == 'median':
+            datf = np.median(dat, axis=0)
+
 
         hduI = fits.ImageHDU()
-        datf = np.sum(dat2, axis=0)/np.sum(weights, axis=0)
         h = np.isnan(datf)
         datf[h] = 0.0
         hduI.data = datf
@@ -114,7 +124,7 @@ def weight_combine(filt='ASU1',month='Feb'):
     hdu0.header = fits.getheader(flatfiles[0])
     hlist.insert(0,hdu0)
     hduA = fits.HDUList(hlist)
-    hduA.writeto(filepath+'flat_{}_{}.fits'.format(filt.lower(),month_str))
+    hduA.writeto(filepath+'flat_{}_{}.fits'.format(filt.lower(),month_str), overwrite=True)
 
     print('\nCreated: \t'+'flat_{}_{}.fits'.format(filt.lower(),month_str)+'\n')
 

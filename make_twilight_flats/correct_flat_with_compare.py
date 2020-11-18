@@ -11,7 +11,7 @@ Usage:
 This script takes biassub_flat.fits and grab biassub_flat.compare.fits, use it to correct biassub_flat.fits,
 output biassub_flat.corrected.fits
 
-Input flatlist.txt should contain the original raw flat file names.
+The file names in flatlist.txt should be the original raw flat file names.
 
 
 """
@@ -23,8 +23,22 @@ from scipy.ndimage import median_filter as mf
 import sys
 import re
 import os
+import multiprocessing as mp
+from astropy.stats import SigmaClip
+from photutils import Background2D, MedianBackground, ModeEstimatorBackground, SExtractorBackground
+from scipy.ndimage import gaussian_filter as gf
+from scipy.ndimage import median_filter as mf
 
+bkg_backsize = 20
+bkg_fsize = 15
+bkg_estimator = MedianBackground()
+sigma_clip = SigmaClip(sigma = 3.)
+smoothing_method = 'gaussian'
+
+# Smooth background after creating background
 median_size = 3
+gaussian_size = 3
+
 
 if len(sys.argv)!=2:
     print(__doc__)
@@ -39,7 +53,7 @@ else:
     filepath = ""
 
 with open(path_file) as f:
-    filelists = [ filepath+'biassub_'+l.strip() for l in f ]
+    filelists = [filepath + 'biassub_' + l.strip() for l in f]
 
 comparelists = [ l.replace('.fits','.compare.fits') for l in filelists ]
 
@@ -64,39 +78,33 @@ for i in range(n):
         month_str = 'mar'
     fskymask = optic_dir+month_dir+'optic_flat_'+filt+'_skymask.fits'
 
-    print('Using Skymask:\t'+month_dir+'optic_flat_'+filt+'_skymask.fits')
-
     im = fits.open(filelists[i])
     compare = fits.open(comparelists[i])
-    skymask = fits.open(fskymask)
 
-    max_skys = []
     nx = im[1].data.shape[0]
     ny = im[1].data.shape[1]
     dat = np.zeros((16, nx, ny), dtype=float)
-    for j in range(1,17):
-        
-        imj = im[j].data
-        comparej = compare[j].data
-        skymaskj = skymask[j].data
 
-        mf_comparej = mf(comparej, size=median_size)
-        dat[j-1] = imj/mf_comparej
-
-        hsky = skymaskj > 0.0
-        max_skys.append( np.median(dat[j-1][hsky]))
-
-    max_sky2 = []
-    for x in range(4):
-        max_sky2.append( max(max_skys[x*4], max_skys[x*4+1], max_skys[x*4+2], max_skys[x*4+3]) )
-    print(max_sky2)
 
     hlist = []
-    for j in range(16):
-        dat[j] = dat[j]/max_sky2[(j)//4]
+    for j in range(1, 17):
+                
+        imj = im[j].data
+        comparej = compare[j].data
+        # skymaskj = skymask[j].data
+
+        compare_bkg = Background2D(comparej, (bkg_backsize, bkg_backsize), filter_size=(bkg_fsize, bkg_fsize), sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
+
+        if smoothing_method == 'gaussian':
+            compare_final = gf(compare_bkg.background, gaussian_size)
+        elif smoothing_method == 'median':
+            compare_final = mf(compare_bkg.background, median_size)
+
+        icorrected = imj / compare_final
+
         hduI = fits.ImageHDU()
-        hduI.data = dat[j]
-        hduI.header = im[j+1].header
+        hduI.data = icorrected
+        hduI.header = im[j].header
         hlist.append(hduI)
 
     hdu0 = fits.PrimaryHDU()
@@ -104,11 +112,11 @@ for i in range(n):
     hlist.insert(0, hdu0)
 
     hduA = fits.HDUList(hlist)
-    hduA.writeto(filelists[i].replace('.fits','.corrected.fits'))
+    hduA.writeto(filelists[i].replace('.fits','.corrected.fits'), overwrite=True)
     print('Corrected flat created:\t'+filelists[i].replace('.fits','.corrected.fits').split('/')[-1]+'\n')
 
     im.close()
     compare.close()
-    skymask.close()
+
 
 
