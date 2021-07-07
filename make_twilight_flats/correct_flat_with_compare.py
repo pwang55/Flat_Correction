@@ -27,7 +27,6 @@ import multiprocessing as mp
 from astropy.stats import SigmaClip
 from photutils import Background2D, MedianBackground, ModeEstimatorBackground, SExtractorBackground
 from scipy.ndimage import gaussian_filter as gf
-from scipy.ndimage import median_filter as mf
 
 bkg_backsize = 20
 bkg_fsize = 15
@@ -54,6 +53,7 @@ else:
 
 with open(path_file) as f:
     filelists = [filepath + 'biassub_' + l.strip() for l in f]
+    # filelists = [filepath + l.strip() for l in f]
 
 comparelists = [ l.replace('.fits','.compare.fits') for l in filelists ]
 

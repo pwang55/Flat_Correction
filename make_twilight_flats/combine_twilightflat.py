@@ -40,6 +40,7 @@ bias_dark_flats_dir = os.environ['_90PRIME_BIAS_DARK_FLATS_DIR']
 
 with open(path_file) as f:
     filelists = [filepath + 'biassub_' + l.strip().replace('.fits', '.corrected.fits') for l in f]
+    # filelists = [filepath + l.strip().replace('.fits', '.corrected.fits') for l in f]
 
 
 def weight_combine(filt='ASU1',month='Feb'):

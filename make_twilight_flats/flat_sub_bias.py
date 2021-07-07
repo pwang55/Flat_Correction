@@ -20,6 +20,8 @@ import sys
 from glob import glob
 
 
+apply_overscan = True
+
 if len(sys.argv) !=2:
     print(__doc__)
     exit()
@@ -70,8 +72,17 @@ with fits.open(filelists[0]) as f:
     ovsx = int(f[1].header['ovrscan2'])
     ny = f[1].header['naxis1'] - ovsy
     nx = f[1].header['naxis2'] - ovsx
+    month = f[0].header['date'].split('-')[1]
+    if month == '02':
+        month_string = 'feb'
+    elif month == '03':
+        month_string = 'mar'
 
-biasfile = bias_dark_flats_dir+'/bias/bias.fits'
+if apply_overscan == True:
+    biasfile = bias_dark_flats_dir + '/bias/bias.fits'
+else:
+    biasfile = bias_dark_flats_dir + '/bias/bias_' + month_string + '.fits'
+
 
 for x in range(n):
 
@@ -82,10 +93,13 @@ for x in range(n):
             nxb0, nxb1, nyb0, nyb1, nxd0, nxd1, nyd0, nyd1 = find_overscan(im0[j].header['biassec'], im0[j].header['datasec'])
             im = im0[j].data[nxd0:nxd1+1, nyd0:nyd1+1]
 
-            overscan0 = np.average(im0[j].data[nxd0:nxd1+1, nyb0:nyb1+1], axis=1)
-            overscan1 = savgol_filter(overscan0, 201, 2)
-            
-            im = im - overscan1[:,None] - fits.getdata(biasfile, j)
+            if apply_overscan == True:
+                overscan0 = np.average(im0[j].data[nxd0:nxd1+1, nyb0:nyb1+1], axis=1)
+                overscan1 = savgol_filter(overscan0, 201, 2)
+                im = im - overscan1[:, None] - fits.getdata(biasfile, j)
+            else:
+                im = im - fits.getdata(biasfile, j)
+
             dat = im
 
             hduI = fits.ImageHDU()
